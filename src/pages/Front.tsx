@@ -3,7 +3,7 @@ import { BRANDS, CATEGORIES, PRODUCTS, TOTAL_PAIRS, byId, img, inStock, type Pro
 import { FAQ, REVIEWS, SHOP, STEPS } from '../data/shop'
 import { money } from '../lib/format'
 import { href } from '../lib/router'
-import { useStore } from '../lib/store'
+import { plural, useStore } from '../lib/store'
 
 /** Афиши дропов: у каждой вещи своё поле цвета и своё крупное слово. */
 const DROPS = [
@@ -22,21 +22,51 @@ export function Front() {
     return () => clearInterval(t)
   }, [drops.length])
 
-  const singles = useMemo(() => PRODUCTS.filter((p) => inStock(p) === 1 && p.heroOk).slice(0, 14), [])
-
   return (
     <div className="relative z-10">
       <Poster drops={drops} i={i} setI={setI} />
-      <Corridor list={singles} />
+      <Singles />
+      <Shelves />
       <Brands />
       <How />
-      <Shop />
-      <Finish />
+      <Store />
+      <Finale />
     </div>
   )
 }
 
-/* ── Первый экран: афиша дропа ───────────────────────────────────────── */
+/** Появление блока при подходе — сдержанно, без цирка. */
+function Rise({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          el.style.transitionDelay = `${delay}ms`
+          el.classList.add('on')
+          io.disconnect()
+        }
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.04 },
+    )
+    io.observe(el)
+    // Страховка: что бы ни случилось с наблюдателем, блок не останется невидимым
+    const safety = setTimeout(() => el.classList.add('on'), 1800)
+    return () => {
+      io.disconnect()
+      clearTimeout(safety)
+    }
+  }, [delay])
+  return (
+    <div ref={ref} className={`lay ${className}`}>
+      {children}
+    </div>
+  )
+}
+
+/* ── 1. Афиша дропа ──────────────────────────────────────────────────── */
 function Poster({
   drops,
   i,
@@ -78,21 +108,19 @@ function Poster({
   return (
     <section
       ref={stage}
-      className="relative overflow-hidden border-b border-line transition-colors duration-1000"
+      className="relative overflow-hidden transition-colors duration-1000"
       style={{ background: cur.field, color: cur.ink, ['--px' as string]: 0, ['--py' as string]: 0 }}
     >
-      <div className="relative mx-auto flex min-h-[calc(100svh-58px)] max-w-[1680px] flex-col px-3 pb-6 pt-6 lg:px-6 lg:pb-8">
+      <div className="relative mx-auto flex min-h-[calc(100svh-58px)] max-w-[1680px] flex-col px-3 pb-5 pt-5 lg:px-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p className="label opacity-60">дроп недели · {SHOP.city}</p>
-          <p className="label opacity-60">
+          <p className="label opacity-55">дроп недели · {SHOP.city}, Орджоникидзе 2/4</p>
+          <p className="label opacity-55">
             {PRODUCTS.length} позиций · {TOTAL_PAIRS} вещей · каждая одна
           </p>
         </div>
 
-        {/* Слово-афиша, товар идёт поверх него */}
         <div className="relative flex flex-1 items-center justify-center">
           <span
-            key={cur.word}
             className="display pointer-events-none absolute select-none whitespace-nowrap text-[clamp(74px,19vw,300px)] leading-none opacity-[0.13]"
             style={{ transform: 'translate3d(calc(var(--px) * -30px), calc(var(--py) * -14px), 0)' }}
           >
@@ -114,22 +142,21 @@ function Poster({
                 alt={d.p.title}
                 width={1200}
                 height={1200}
-                className="max-h-[54svh] w-auto max-w-[78%] object-contain"
+                className="max-h-[52svh] w-auto max-w-[78%] object-contain"
                 style={{ filter: 'drop-shadow(0 40px 30px rgba(0,0,0,.26))' }}
               />
             </a>
           ))}
         </div>
 
-        {/* Афишные данные: что, сколько, какой размер, и одно действие */}
         <div className="grid gap-4 border-t border-current/15 pt-4 md:grid-cols-[1.4fr_1fr_auto] md:items-end">
           <div>
-            <p className="label opacity-60">{cur.p.brand} · {cur.note}</p>
-            <h1 className="mt-1 text-[clamp(20px,2.6vw,32px)] font-semibold leading-tight">{cur.p.title}</h1>
+            <p className="label opacity-55">{cur.p.brand} · {cur.note}</p>
+            <h1 className="mt-1 text-[clamp(19px,2.4vw,30px)] font-semibold leading-tight">{cur.p.title}</h1>
           </div>
           <div className="mono text-[13px]">
-            <p className="text-[clamp(22px,2.6vw,30px)] font-semibold leading-none">{money(cur.p.price)}</p>
-            <p className="mt-1.5 opacity-60">
+            <p className="text-[clamp(21px,2.4vw,28px)] font-semibold leading-none">{money(cur.p.price)}</p>
+            <p className="mt-1.5 opacity-55">
               размер {cur.p.sizes.map((s) => s.label).join(', ')} · {inStock(cur.p) === 1 ? 'одна пара' : `${inStock(cur.p)} шт`}
             </p>
           </div>
@@ -147,14 +174,20 @@ function Poster({
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-1.5">
+        {/* Миниатюры дропов — видно, что дальше, и можно переключить руками */}
+        <div className="mt-4 flex gap-2">
           {drops.map((d, n) => (
             <button
               key={d.id}
               onClick={() => setI(n)}
               aria-label={d.p.title}
-              className={`h-[3px] flex-1 transition-opacity ${n === i ? 'bg-current opacity-100' : 'bg-current opacity-20 hover:opacity-50'}`}
-            />
+              className={`flex flex-1 items-center gap-2 border px-2 py-2 text-left transition ${
+                n === i ? 'border-current' : 'border-current/20 opacity-55 hover:opacity-100'
+              }`}
+            >
+              <img src={img(d.p.images[0])} alt="" width={44} height={44} className="h-9 w-9 shrink-0 object-contain" />
+              <span className="mono hidden truncate text-[10px] sm:block">{d.word}</span>
+            </button>
           ))}
         </div>
       </div>
@@ -162,224 +195,308 @@ function Poster({
   )
 }
 
-/* ── Зал 2: проход вдоль полки — вертикальный скролл едет вбок ───────── */
-function Corridor({ list }: { list: Product[] }) {
-  const outer = useRef<HTMLDivElement>(null)
-  const track = useRef<HTMLDivElement>(null)
-  const [progress, setProgress] = useState(0)
-
-  useEffect(() => {
-    const o = outer.current
-    const t = track.current
-    if (!o || !t) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    let raf = 0
-    const onScroll = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        const r = o.getBoundingClientRect()
-        const total = r.height - window.innerHeight
-        const p = Math.max(0, Math.min(1, -r.top / (total || 1)))
-        const dist = Math.max(0, t.scrollWidth - window.innerWidth + 48)
-        t.style.transform = `translate3d(${(-p * dist).toFixed(1)}px,0,0)`
-        setProgress(p)
-      })
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
-      cancelAnimationFrame(raf)
-    }
-  }, [list])
+/* ── 2. Осталось по одной — плотная сетка на тёмном ──────────────────── */
+function Singles() {
+  const { take, mySize } = useStore()
+  const list = useMemo(() => PRODUCTS.filter((p) => inStock(p) === 1 && p.heroOk).slice(0, 8), [])
+  const total = useMemo(() => PRODUCTS.filter((p) => inStock(p) === 1).length, [])
 
   return (
-    <section ref={outer} className="relative border-b border-line bg-deep text-white" style={{ height: '320vh' }}>
-      <div className="sticky top-0 flex h-screen flex-col justify-center overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60vw_50vw_at_50%_0%,rgba(255,226,168,.14),transparent_66%)]" />
-
-        <div className="relative mx-auto w-full max-w-[1680px] px-3 lg:px-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
+    <section className="bg-deep py-14 text-white lg:py-20">
+      <div className="mx-auto max-w-[1680px] px-3 lg:px-6">
+        <Rise>
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-white/15 pb-5">
             <div>
               <p className="label text-mark">осталось по одной</p>
-              <h2 className="display mt-2 text-[clamp(28px,5vw,64px)]">Пройдите вдоль полки</h2>
+              <h2 className="display mt-2 text-[clamp(28px,5.2vw,66px)]">
+                {total} вещей, которых
+                <br />
+                больше не будет
+              </h2>
             </div>
-            <p className="max-w-[40ch] text-[14px] text-white/55">
-              Здесь позиции, у которых остался ровно один размер и ровно одна вещь. Прокручивайте — полка едет.
+            <p className="max-w-[38ch] text-[14px] leading-snug text-white/55">
+              У этих позиций остался ровно один размер и ровно одна штука. Забрали — и повторить мы не сможем: возим
+              штучно, а не коробками.
             </p>
           </div>
+        </Rise>
+
+        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
+          {list.map((p, n) => (
+            <Rise key={p.id} delay={(n % 4) * 60}>
+              <article className="group flex h-full flex-col">
+                <a href={href(`/p/${p.id}`)} data-hint="открыть" className="relative flex aspect-square items-center justify-center">
+                  <span
+                    className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                    style={{ background: 'radial-gradient(closest-side, rgba(255,232,180,.14), transparent 72%)' }}
+                  />
+                  <img
+                    src={img(p.images[0])}
+                    alt={p.title}
+                    width={700}
+                    height={700}
+                    loading="lazy"
+                    className="relative max-h-full w-full object-contain transition-transform duration-500 group-hover:-translate-y-2.5"
+                    style={{ filter: 'drop-shadow(0 24px 18px rgba(0,0,0,.65))' }}
+                  />
+                  <span
+                    className="pointer-events-none absolute inset-x-[22%] bottom-1 h-[12px] transition-all duration-500 group-hover:inset-x-[16%]"
+                    style={{ background: 'radial-gradient(closest-side, rgba(0,0,0,.9), transparent 76%)' }}
+                  />
+                </a>
+                <p className="label mt-3 text-white/45">{p.brand}</p>
+                <a href={href(`/p/${p.id}`)} className="mt-1 line-clamp-2 text-[14px] font-medium leading-tight hover:text-mark">
+                  {p.title}
+                </a>
+                <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+                  <span className="mono text-[15px] font-semibold">{money(p.price)}</span>
+                  <button
+                    onClick={(e) => take(p, p.sizes[0].label, e.currentTarget)}
+                    data-hint="взять"
+                    className={`mono border px-2 py-1 text-[11px] transition ${
+                      mySize === p.sizes[0]?.label ? 'border-mark bg-mark text-white' : 'border-white/30 hover:border-white'
+                    }`}
+                  >
+                    {p.sizes[0]?.label}
+                  </button>
+                </div>
+              </article>
+            </Rise>
+          ))}
         </div>
 
-        <div className="relative mt-8 overflow-hidden">
-          <div ref={track} className="flex w-max items-end gap-10 px-6 will-change-transform lg:gap-16">
-            {list.map((p) => (
-              <a key={p.id} href={href(`/p/${p.id}`)} data-hint="открыть" className="group flex w-[min(38vw,240px)] shrink-0 flex-col items-center">
-                <img
-                  src={img(p.images[0])}
-                  alt={p.title}
-                  width={600}
-                  height={600}
-                  loading="lazy"
-                  className="h-[clamp(110px,17vw,210px)] w-auto object-contain transition-transform duration-500 group-hover:-translate-y-3"
-                  style={{ filter: 'drop-shadow(0 22px 18px rgba(0,0,0,.6))' }}
-                />
-                <span
-                  className="mt-2 h-[10px] w-[70%] transition-all duration-500 group-hover:w-[86%]"
-                  style={{ background: 'radial-gradient(closest-side, rgba(0,0,0,.85), transparent 76%)' }}
-                />
-                <span className="label mt-2 text-white/45">{p.brand}</span>
-                <span className="mt-0.5 line-clamp-2 text-center text-[13px] leading-tight">{p.title}</span>
-                <span className="mono mt-1 text-[13px] font-semibold text-mark">{money(p.price)}</span>
-                <span className="mono mt-0.5 text-[10px] text-white/40">размер {p.sizes[0]?.label} · 1 шт</span>
-              </a>
-            ))}
-          </div>
-        </div>
-
-        <div className="relative mx-auto mt-8 w-full max-w-[1680px] px-3 lg:px-6">
-          <div className="h-px w-full bg-white/15">
-            <div className="h-full bg-mark transition-[width] duration-100" style={{ width: `${progress * 100}%` }} />
-          </div>
-          <div className="mono mt-2 flex justify-between text-[10px] text-white/40">
-            <span>1 / {list.length}</span>
-            <a href={href('/catalog')} className="border-b border-white/40 pb-0.5 hover:text-mark">ВСЯ СТЕНА →</a>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ── Зал 3: бренды с живым превью ────────────────────────────────────── */
-function Brands() {
-  const [active, setActive] = useState(BRANDS[0].name)
-  const preview = useMemo(() => PRODUCTS.filter((p) => p.brand === active && p.heroOk).slice(0, 3), [active])
-
-  return (
-    <section className="border-b border-line">
-      <div className="mx-auto grid max-w-[1680px] gap-8 px-3 py-14 lg:grid-cols-[1fr_1fr] lg:px-6">
-        <div>
-          <p className="label text-mark">бренды</p>
-          <h2 className="display mt-2 text-[clamp(26px,4vw,52px)]">Кого мы возим</h2>
-          <div className="mt-6 border-t border-line">
-            {BRANDS.map((b) => (
-              <a
-                key={b.slug}
-                href={href(`/catalog?brand=${encodeURIComponent(b.name)}`)}
-                onMouseEnter={() => setActive(b.name)}
-                className={`flex items-baseline justify-between gap-3 border-b border-line py-3 transition-colors ${
-                  active === b.name ? 'text-mark' : 'hover:text-mark'
-                }`}
-              >
-                <span className="display text-[clamp(18px,2.4vw,28px)]">{b.name}</span>
-                <span className="mono shrink-0 text-[11px] text-mute">{b.count} · от {money(b.min)}</span>
-              </a>
-            ))}
-          </div>
-        </div>
-        <div className="relative min-h-[280px] border border-line bg-sheet p-5">
-          <span
-            className="pointer-events-none absolute inset-0"
-            style={{ background: 'radial-gradient(closest-side at 50% 40%, rgba(255,247,232,.9), transparent 72%)' }}
-          />
-          <p className="label relative text-mute">{active}</p>
-          <div className="relative mt-4 grid grid-cols-3 gap-3">
-            {preview.map((p) => (
-              <a key={p.id} href={href(`/p/${p.id}`)} className="group flex flex-col">
-                <img
-                  src={img(p.images[0])}
-                  alt={p.title}
-                  width={400}
-                  height={400}
-                  loading="lazy"
-                  className="h-28 w-full object-contain transition-transform duration-500 group-hover:-translate-y-2"
-                  style={{ filter: 'drop-shadow(0 16px 14px rgba(16,17,20,.2))' }}
-                />
-                <span className="mt-2 line-clamp-2 text-[12px] leading-tight">{p.title}</span>
-                <span className="mono mt-1 text-[12px] font-semibold">{money(p.price)}</span>
-              </a>
-            ))}
-          </div>
+        <div className="mt-9 flex flex-wrap items-center justify-between gap-3 border-t border-white/15 pt-5">
+          <p className="mono text-[12px] text-white/45">показано 8 из {total}</p>
+          <a href={href('/catalog')} className="label bg-mark px-6 py-4 text-white transition hover:bg-mark-dim">
+            СМОТРЕТЬ ВСЕ {total} →
+          </a>
         </div>
       </div>
     </section>
   )
 }
 
-/* ── Зал 4: как это работает ─────────────────────────────────────────── */
-function How() {
+/* ── 3. Категории афишами на песочном поле ───────────────────────────── */
+function Shelves() {
   return (
-    <section className="border-b border-line bg-sheet">
-      <div className="mx-auto max-w-[1680px] px-3 py-14 lg:px-6">
-        <p className="label text-mark">как это работает</p>
-        <h2 className="display mt-2 text-[clamp(26px,4vw,52px)]">Три шага и вещь ваша</h2>
-        <div className="mt-8 grid gap-8 md:grid-cols-3">
-          {STEPS.map((s) => (
-            <div key={s.n} className="border-t-2 border-graphite pt-4">
-              <span className="display text-[36px] leading-none text-mark">{s.n}</span>
-              <h3 className="mt-2 text-[17px] font-semibold leading-tight">{s.t}</h3>
-              <p className="mt-1.5 text-[14px] leading-snug text-mute">{s.d}</p>
+    <section style={{ background: '#EAE4D6' }} className="py-14 lg:py-20">
+      <div className="mx-auto max-w-[1680px] px-3 lg:px-6">
+        <Rise>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="label text-mark">полки</p>
+              <h2 className="display mt-2 text-[clamp(28px,5vw,62px)]">Что у нас лежит</h2>
             </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
+            <a href={href('/catalog')} className="label border border-graphite px-5 py-3.5 transition hover:bg-graphite hover:text-white">
+              ВЕСЬ КАТАЛОГ · {PRODUCTS.length}
+            </a>
+          </div>
+        </Rise>
 
-/* ── Зал 5: магазин, отзывы, вопросы ─────────────────────────────────── */
-function Shop() {
-  return (
-    <section className="border-b border-line">
-      <div className="mx-auto grid max-w-[1680px] gap-10 px-3 py-14 lg:grid-cols-[1fr_1fr] lg:px-6">
-        <div>
-          <p className="label text-mark">оффлайн</p>
-          <h2 className="display mt-2 text-[clamp(26px,4vw,52px)]">Всё это лежит в Воронеже</h2>
-          <p className="mt-3 max-w-[48ch] text-[15px] leading-snug text-mute">
-            {SHOP.address}. Здесь то же самое можно взять в руки, померить и забрать сразу. Перед визитом за конкретной
-            вещью напишите — отложим.
-          </p>
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <span className="display text-[46px] leading-none">{SHOP.rating.value}</span>
-            <span className="text-[13px] text-mute">
-              ★★★★★
-              <br />
-              {SHOP.rating.count} отзывов на {SHOP.rating.source}
-            </span>
-          </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <a href={SHOP.tg.channel} target="_blank" rel="noreferrer" className="label bg-graphite px-4 py-3 text-white hover:bg-mark">КАНАЛ SINI</a>
-            <a href={SHOP.mapUrl} target="_blank" rel="noreferrer" className="label border border-graphite px-4 py-3 hover:bg-graphite hover:text-white">НА КАРТЕ</a>
-          </div>
-          <div className="mt-6 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-            {CATEGORIES.slice(0, 6).map((c) => (
-              <a key={c.slug} href={href(`/catalog?cat=${c.slug}`)} className="flex items-center justify-between gap-2 border border-line bg-sheet px-3 py-2.5 text-[13px] hover:border-graphite">
-                {c.ru}
-                <span className="mono text-[10px] text-mute">{c.count}</span>
+        <div className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+          {CATEGORIES.map((c, n) => (
+            <Rise key={c.slug} delay={(n % 5) * 55}>
+              <a
+                href={href(`/catalog?cat=${c.slug}`)}
+                data-hint="открыть"
+                className="group relative flex aspect-[4/5] flex-col justify-end overflow-hidden border border-graphite/12 bg-sheet p-3 transition-colors hover:border-graphite"
+              >
+                <span
+                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                  style={{ background: 'radial-gradient(closest-side at 50% 34%, rgba(255,246,228,1), transparent 72%)' }}
+                />
+                <img
+                  src={img(c.image)}
+                  alt={c.ru}
+                  width={700}
+                  height={700}
+                  loading="lazy"
+                  className="absolute inset-x-[8%] top-[8%] h-[58%] w-[84%] object-contain transition-transform duration-500 group-hover:-translate-y-2"
+                  style={{ filter: 'drop-shadow(0 18px 14px rgba(16,17,20,.2))' }}
+                />
+                <span className="relative">
+                  <span className="mono block text-[10px] text-mute">{c.count} шт · от {money(c.min)}</span>
+                  <span className="mt-1 block text-[15px] font-semibold leading-tight">{c.ru}</span>
+                </span>
               </a>
+            </Rise>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ── 4. Бренды плитками с товаром ────────────────────────────────────── */
+function Brands() {
+  const pick = (name: string) => PRODUCTS.find((p) => p.brand === name && p.heroOk)
+  return (
+    <section style={{ background: '#DFE3E6' }} className="py-14 lg:py-20">
+      <div className="mx-auto max-w-[1680px] px-3 lg:px-6">
+        <Rise>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="label text-mark">бренды</p>
+              <h2 className="display mt-2 text-[clamp(28px,5vw,62px)]">Кого мы возим</h2>
+            </div>
+            <p className="max-w-[36ch] text-[14px] leading-snug text-mute">
+              Наведите — покажем, что от бренда лежит прямо сейчас.
+            </p>
+          </div>
+        </Rise>
+
+        <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          {BRANDS.map((b, n) => {
+            const p = pick(b.name)
+            return (
+              <Rise key={b.slug} delay={(n % 6) * 50}>
+                <a
+                  href={href(`/catalog?brand=${encodeURIComponent(b.name)}`)}
+                  data-hint="открыть"
+                  className="group relative flex aspect-square flex-col justify-between overflow-hidden border border-graphite/12 bg-sheet p-3 transition-colors hover:border-graphite"
+                >
+                  {p && (
+                    <img
+                      src={img(p.images[0])}
+                      alt=""
+                      width={500}
+                      height={500}
+                      loading="lazy"
+                      className="pointer-events-none absolute inset-x-[10%] top-[24%] h-[52%] w-[80%] scale-95 object-contain opacity-0 transition-all duration-500 group-hover:scale-100 group-hover:opacity-100"
+                      style={{ filter: 'drop-shadow(0 16px 14px rgba(16,17,20,.22))' }}
+                    />
+                  )}
+                  <span className="display relative text-[clamp(15px,1.5vw,20px)] leading-tight">{b.name}</span>
+                  <span className="mono relative text-[10px] text-mute">
+                    {b.count} {plural(b.count, 'вещь', 'вещи', 'вещей')} · от {money(b.min)}
+                  </span>
+                </a>
+              </Rise>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ── 5. Как это работает ─────────────────────────────────────────────── */
+function How() {
+  const sample = useMemo(() => PRODUCTS.filter((p) => p.heroOk).slice(10, 13), [])
+  return (
+    <section className="bg-sheet py-14 lg:py-20">
+      <div className="mx-auto max-w-[1680px] px-3 lg:px-6">
+        <Rise>
+          <p className="label text-mark">как это работает</p>
+          <h2 className="display mt-2 text-[clamp(28px,5vw,62px)]">Три шага и вещь ваша</h2>
+        </Rise>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          {STEPS.map((s, n) => (
+            <Rise key={s.n} delay={n * 80}>
+              <div className="flex h-full flex-col border border-line bg-table p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="display text-[42px] leading-none text-mark">{s.n}</span>
+                  {sample[n] && (
+                    <img
+                      src={img(sample[n].images[0])}
+                      alt=""
+                      width={200}
+                      height={200}
+                      loading="lazy"
+                      className="h-16 w-24 object-contain"
+                      style={{ filter: 'drop-shadow(0 12px 10px rgba(16,17,20,.18))' }}
+                    />
+                  )}
+                </div>
+                <h3 className="mt-4 text-[17px] font-semibold leading-tight">{s.t}</h3>
+                <p className="mt-2 text-[14px] leading-snug text-mute">{s.d}</p>
+              </div>
+            </Rise>
+          ))}
+        </div>
+
+        <Rise delay={120}>
+          <div className="mt-4 grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ['Оригинал', 'Фото и видео артикула, бирок и коробки — по запросу до отправки'],
+              ['Примерка', `Оффлайн-магазин: ${SHOP.address}`],
+              ['СДЭК по России, РБ и КЗ', `Бесплатно от ${money(SHOP.freeFrom)}, по России 2–7 дней`],
+              ['Возврат 14 дней', 'При сохранении вида, бирок и упаковки'],
+            ].map(([t, d]) => (
+              <div key={t} className="bg-table p-5">
+                <p className="text-[15px] font-semibold">{t}</p>
+                <p className="mt-1 text-[13px] leading-snug text-mute">{d}</p>
+              </div>
             ))}
           </div>
-        </div>
-        <div className="grid gap-4">
-          {REVIEWS.slice(0, 2).map((r) => (
-            <figure key={r.date} className="border-l-2 border-mark pl-4">
-              <blockquote className="text-[14px] leading-snug">«{r.text}»</blockquote>
-              <figcaption className="mono mt-2 text-[10px] text-mute">{r.name} · {r.date}</figcaption>
-            </figure>
-          ))}
-          <div className="border-t border-line pt-4">
-            {FAQ.slice(0, 4).map((x) => (
-              <details key={x.q} className="group border-b border-line">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-3 text-[15px] font-medium">
-                  {x.q}
-                  <span className="text-mark transition group-open:rotate-45">+</span>
-                </summary>
-                <p className="max-w-[64ch] pb-3 text-[13px] leading-snug text-mute">{x.a}</p>
-              </details>
-            ))}
-            <a href={href('/info/faq')} className="label mt-3 inline-block border-b border-graphite pb-0.5">ВСЕ ВОПРОСЫ →</a>
+        </Rise>
+      </div>
+    </section>
+  )
+}
+
+/* ── 6. Магазин: карта, оценка, отзывы, вопросы ──────────────────────── */
+function Store() {
+  return (
+    <section className="bg-deep py-14 text-white lg:py-20">
+      <div className="mx-auto max-w-[1680px] px-3 lg:px-6">
+        <Rise>
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-white/15 pb-5">
+            <div>
+              <p className="label text-mark">оффлайн</p>
+              <h2 className="display mt-2 text-[clamp(28px,5vw,62px)]">Всё это лежит в Воронеже</h2>
+            </div>
+            <div className="flex items-end gap-3">
+              <span className="display text-[52px] leading-none">{SHOP.rating.value}</span>
+              <span className="pb-1 text-[13px] text-white/55">
+                ★★★★★
+                <br />
+                {SHOP.rating.count} отзывов на {SHOP.rating.source}
+              </span>
+            </div>
+          </div>
+        </Rise>
+
+        <div className="mt-7 grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+          <Rise>
+            <div className="h-[320px] overflow-hidden border border-white/15 lg:h-full lg:min-h-[380px]">
+              <iframe
+                title="SINI на карте"
+                src="https://yandex.ru/map-widget/v1/?ll=39.196%2C51.669&z=16&text=%D0%92%D0%BE%D1%80%D0%BE%D0%BD%D0%B5%D0%B6%2C%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%20%D0%9E%D1%80%D0%B4%D0%B6%D0%BE%D0%BD%D0%B8%D0%BA%D0%B8%D0%B4%D0%B7%D0%B5%2C%202%2F4"
+                className="h-full w-full"
+                loading="lazy"
+              />
+            </div>
+          </Rise>
+
+          <div className="grid gap-4">
+            <Rise delay={80}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {REVIEWS.slice(0, 2).map((r) => (
+                  <figure key={r.date} className="border border-white/15 p-4">
+                    <blockquote className="text-[13px] leading-snug text-white/85">«{r.text}»</blockquote>
+                    <figcaption className="mono mt-3 text-[10px] text-white/40">{r.name} · {r.date}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            </Rise>
+            <Rise delay={140}>
+              <div className="border-t border-white/15 pt-3">
+                {FAQ.slice(0, 4).map((x) => (
+                  <details key={x.q} className="group border-b border-white/12">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-3 text-[15px] font-medium">
+                      {x.q}
+                      <span className="text-mark transition group-open:rotate-45">+</span>
+                    </summary>
+                    <p className="max-w-[64ch] pb-3 text-[13px] leading-snug text-white/60">{x.a}</p>
+                  </details>
+                ))}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <a href={SHOP.tg.channel} target="_blank" rel="noreferrer" className="label bg-mark px-4 py-3 text-white">КАНАЛ {SHOP.tg.channelName}</a>
+                  <a href={href('/info/faq')} className="label border border-white/30 px-4 py-3 hover:bg-white hover:text-graphite">ВСЕ ВОПРОСЫ</a>
+                </div>
+              </div>
+            </Rise>
           </div>
         </div>
       </div>
@@ -387,23 +504,28 @@ function Shop() {
   )
 }
 
-/* ── Финал: вход в каталог ───────────────────────────────────────────── */
-function Finish() {
+/* ── 7. Финал: оранжевое поле, одно действие ─────────────────────────── */
+function Finale() {
   const { mySize } = useStore()
+  const sale = useMemo(() => PRODUCTS.filter((p) => p.old).length, [])
   return (
-    <section className="border-b border-line bg-deep py-16 text-white">
+    <section className="bg-mark py-16 text-white lg:py-24">
       <div className="mx-auto max-w-[1680px] px-3 text-center lg:px-6">
-        <p className="label text-mark">теперь выбирайте</p>
-        <h2 className="display mt-3 text-[clamp(30px,6.4vw,84px)]">
+        <p className="label text-white/70">теперь выбирайте</p>
+        <h2 className="display mt-4 text-[clamp(30px,7vw,96px)] leading-[0.94]">
           {PRODUCTS.length} позиций.
           <br />
           Каждая в одном экземпляре.
         </h2>
+        <p className="mx-auto mt-5 max-w-[52ch] text-[15px] leading-snug text-white/80">
+          Промокод <b>{SHOP.promo}</b> даёт −5% на первый заказ. {sale}{' '}
+          {plural(sale, 'позиция', 'позиции', 'позиций')} уже с уценкой.
+        </p>
         <div className="mt-8 flex flex-wrap justify-center gap-2">
-          <a href={href(mySize ? `/catalog?size=${mySize}` : '/catalog')} className="label bg-mark px-7 py-4 text-white hover:bg-mark-dim">
+          <a href={href(mySize ? `/catalog?size=${mySize}` : '/catalog')} className="label bg-white px-7 py-4 text-graphite transition hover:bg-graphite hover:text-white">
             {mySize ? `ОТКРЫТЬ КАТАЛОГ В РАЗМЕРЕ ${mySize}` : 'ОТКРЫТЬ КАТАЛОГ'}
           </a>
-          <a href={href('/concierge')} className="label border border-white/40 px-7 py-4 hover:bg-white hover:text-graphite">
+          <a href={href('/concierge')} className="label border border-white/60 px-7 py-4 transition hover:bg-white hover:text-graphite">
             НЕТ МОЕГО РАЗМЕРА
           </a>
         </div>
