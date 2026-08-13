@@ -186,6 +186,32 @@
 }
 .fade { animation: fadeIn 0.3s ease both; }
 
+/* Переход между экранами — штора света уходит вправо */
+@keyframes shutter {
+  0% { transform: scaleX(0); transform-origin: left; opacity: 1; }
+  42% { transform: scaleX(1); transform-origin: left; opacity: 1; }
+  43% { transform: scaleX(1); transform-origin: right; }
+  100% { transform: scaleX(0); transform-origin: right; opacity: 1; }
+}
+.shutter {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--color-graphite), #1e2024 55%, var(--color-graphite));
+  animation: shutter 0.62s cubic-bezier(0.7, 0, 0.3, 1) both;
+}
+.shutter::after {
+  content: "SINI";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 6vw, 64px);
+  color: rgba(255, 255, 255, 0.14);
+}
+
 /* Перелёт снимка между сеткой и карточкой */
 .ghost {
   position: fixed;

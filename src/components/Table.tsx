@@ -38,6 +38,26 @@ export function TableBg() {
   )
 }
 
+/** Переход между экранами: короткая штора, чтобы смена страницы читалась как движение. */
+export function Shutter() {
+  const [n, setN] = useState(0)
+  const first = useRef(true)
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const on = () => {
+      if (first.current) {
+        first.current = false
+        return
+      }
+      setN((v) => v + 1)
+    }
+    window.addEventListener('hashchange', on)
+    return () => window.removeEventListener('hashchange', on)
+  }, [])
+  if (!n) return null
+  return <div key={n} aria-hidden className="shutter" />
+}
+
 /** Курсор-подсказка: точка, которая рассказывает, что случится по клику. */
 export function Cursor() {
   const dot = useRef<HTMLDivElement>(null)

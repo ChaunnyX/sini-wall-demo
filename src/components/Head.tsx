@@ -27,11 +27,18 @@ export function Head() {
         <a href={href('/')} className="display shrink-0 text-[22px] tracking-[-0.02em] lg:text-[26px]">
           SINI
         </a>
-        <span className="mono hidden shrink-0 border-l border-line pl-3 text-[10px] leading-tight text-mute lg:block">
-          мультибренд
-          <br />
-          {SHOP.city}, с {SHOP.since}
-        </span>
+        <nav className="hidden shrink-0 items-center gap-4 border-l border-line pl-4 lg:flex">
+          {[
+            { to: '/catalog', l: 'Каталог' },
+            { to: '/catalog?fresh=1', l: 'Новинки' },
+            { to: '/catalog?sale=1', l: 'Sale' },
+            { to: '/concierge', l: 'Под заказ' },
+          ].map((n) => (
+            <a key={n.l} href={href(n.to)} className="text-[13px] font-medium hover:text-mark">
+              {n.l}
+            </a>
+          ))}
+        </nav>
 
         {/* Поиск всегда на виду — в магазине это главный инструмент */}
         <div className="relative ml-auto w-full max-w-[520px]">
@@ -46,7 +53,7 @@ export function Head() {
               onFocus={() => setFocus(true)}
               onBlur={() => setTimeout(() => setFocus(false), 160)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && q.trim()) go(`/?q=${encodeURIComponent(q.trim())}`)
+                if (e.key === 'Enter' && q.trim()) go(`/catalog?q=${encodeURIComponent(q.trim())}`)
               }}
               placeholder="Модель, бренд, артикул — «2002R», «нб», «FD0780»"
               className="w-full bg-transparent text-[14px] outline-none placeholder:text-mute/70"
@@ -70,7 +77,7 @@ export function Head() {
                   <span className="mono shrink-0 text-[12px] font-semibold">{money(p.price)}</span>
                 </a>
               ))}
-              <button onClick={() => go(`/?q=${encodeURIComponent(q.trim())}`)} className="label w-full bg-graphite py-2.5 text-white">
+              <button onClick={() => go(`/catalog?q=${encodeURIComponent(q.trim())}`)} className="label w-full bg-graphite py-2.5 text-white">
                 ПОКАЗАТЬ ВСЁ ПО ЗАПРОСУ
               </button>
             </div>

@@ -1,31 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { APPAREL_SIZES, BRANDS, CATEGORIES, PRODUCTS, SHOE_SIZES, TOTAL_PAIRS, byId, img, type Product } from '../data/catalog'
+import { APPAREL_SIZES, BRANDS, CATEGORIES, PRODUCTS, SHOE_SIZES, TOTAL_PAIRS, type Product } from '../data/catalog'
 import { FAQ, REVIEWS, SHOP, TRUST } from '../data/shop'
-import { discount, money } from '../lib/format'
+import { money } from '../lib/format'
 import { filterProducts, type Filters } from '../lib/search'
 import { useFlip } from '../lib/flip'
 import { go, href, type Route } from '../lib/router'
 import { plural, useStore } from '../lib/store'
 import { Piece, type Density } from '../components/Piece'
+import { Mosaic } from '../components/Mosaic'
 import { QuickView } from '../components/QuickView'
 
-const DENSITY: { k: Density; l: string; cls: string }[] = [
-  { k: 'big', l: 'Крупно', cls: 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3' },
-  { k: 'grid', l: 'Сетка', cls: 'grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5' },
-  { k: 'dense', l: 'Плотно', cls: 'grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8' },
-  { k: 'list', l: 'Списком', cls: 'flex flex-col' },
+type View = 'wall' | 'big' | 'dense' | 'list'
+const VIEWS: { k: View; l: string }[] = [
+  { k: 'wall', l: 'Стена' },
+  { k: 'big', l: 'Крупно' },
+  { k: 'dense', l: 'Плотно' },
+  { k: 'list', l: 'Списком' },
 ]
+const CLS: Record<Exclude<View, 'wall'>, string> = {
+  big: 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3',
+  dense: 'grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8',
+  list: 'flex flex-col',
+}
 const SORTS = [
   { k: '', l: 'Сначала новинки' },
   { k: 'cheap', l: 'Сначала дешевле' },
   { k: 'rich', l: 'Сначала дороже' },
   { k: 'sale', l: 'Больше скидка' },
 ]
-const STAR = 'krossovki-new-balance-m2002rdd'
 
 export function Wall({ route }: { route: Route }) {
   const { setMySize } = useStore()
-  const [density, setDensity] = useState<Density>(() => (localStorage.getItem('sini-density') as Density) || 'grid')
+  const [view, setView] = useState<View>(() => (localStorage.getItem('sini-view') as View) || 'wall')
   const [quick, setQuick] = useState<Product | null>(null)
   const [openRail, setOpenRail] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -44,27 +50,14 @@ export function Wall({ route }: { route: Route }) {
   const clean = !f.q && !f.cat && !f.group && !f.brand && !f.size && !f.sale && !f.fresh
 
   const list = useMemo(() => filterProducts(f), [q.toString()]) // eslint-disable-line react-hooks/exhaustive-deps
-  useFlip(gridRef, `${q.toString()}|${density}`)
-
-  useEffect(() => localStorage.setItem('sini-density', density), [density])
-
-  // Выкладываем предметы на стол по мере прокрутки
-  useEffect(() => {
-    const root = gridRef.current
-    if (!root) return
-    const io = new IntersectionObserver(
-      (es) => es.forEach((e) => e.isIntersecting && (e.target as HTMLElement).classList.add('on')),
-      { rootMargin: '0px 0px -6% 0px', threshold: 0.02 },
-    )
-    root.querySelectorAll('.lay').forEach((n) => io.observe(n))
-    return () => io.disconnect()
-  }, [list, density])
+  useFlip(gridRef, `${q.toString()}|${view}`)
+  useEffect(() => localStorage.setItem('sini-view', view), [view])
 
   const set = (k: string, v?: string | null) => {
     const n = new URLSearchParams(q.toString())
     if (!v) n.delete(k)
     else n.set(k, v)
-    go(`/${n.toString() ? `?${n}` : ''}`, true)
+    go(`/catalog${n.toString() ? `?${n}` : ''}`, true)
   }
 
   const chips: { l: string; clear: () => void }[] = []
@@ -75,8 +68,7 @@ export function Wall({ route }: { route: Route }) {
   if (f.sale) chips.push({ l: 'Со скидкой', clear: () => set('sale', null) })
   if (f.fresh) chips.push({ l: 'Новинки', clear: () => set('fresh', null) })
 
-  const cls = DENSITY.find((d) => d.k === density)!.cls
-  const star = byId(STAR)
+  const title = f.q ? `«${f.q}»` : f.cat ? CATEGORIES.find((c) => c.slug === f.cat)?.ru : f.brand ? f.brand : f.sale ? 'Уценённое' : f.fresh ? 'Новинки' : 'Вся стена'
 
   const Rail = (
     <div className="flex flex-col gap-5 text-[13px]">
@@ -154,30 +146,85 @@ export function Wall({ route }: { route: Route }) {
     </div>
   )
 
+  /** Текстовая плитка живёт внутри стены — заголовок не отнимает у товара экран */
+  const LeadTile = (
+    <div className="relative flex aspect-[4/5] flex-col justify-between border border-graphite bg-graphite p-4 text-white">
+      <div>
+        <p className="label text-mark">{SHOP.city} · с {SHOP.since}</p>
+        <p className="display mt-3 text-[clamp(30px,4.4vw,58px)] leading-[0.92]">
+          {PRODUCTS.length}
+          <br />
+          вещей
+        </p>
+        <p className="mt-3 max-w-[24ch] text-[13px] leading-snug text-white/65">
+          Мультибренд SINI. Возим штучно: почти у каждой позиции остался один размер — забрали, и она ушла со стены.
+        </p>
+      </div>
+      <dl className="mono grid grid-cols-2 gap-y-2 border-t border-white/15 pt-3 text-[10px] text-white/55">
+        <div>
+          <dt>штук в наличии</dt>
+          <dd className="text-[15px] text-white">{TOTAL_PAIRS}</dd>
+        </div>
+        <div>
+          <dt>брендов</dt>
+          <dd className="text-[15px] text-white">{BRANDS.length}</dd>
+        </div>
+        <div>
+          <dt>размеров обуви</dt>
+          <dd className="text-[15px] text-white">{SHOE_SIZES.length}</dd>
+        </div>
+        <div>
+          <dt>оценка на картах</dt>
+          <dd className="text-[15px] text-white">{SHOP.rating.value}</dd>
+        </div>
+      </dl>
+    </div>
+  )
+
+  const PromoTile = (
+    <a
+      href={href('/concierge')}
+      data-hint="открыть"
+      className="group relative flex aspect-square flex-col justify-between border border-mark bg-mark p-4 text-white"
+    >
+      <div>
+        <p className="label text-white/80">consierge</p>
+        <p className="display mt-3 text-[clamp(20px,2.4vw,30px)] leading-[0.95]">
+          Нет вашего
+          <br />
+          размера?
+        </p>
+      </div>
+      <div>
+        <p className="text-[13px] leading-snug text-white/85">
+          Привезём под заказ: находим редкие модели и нужный размер, показываем фото до отправки.
+        </p>
+        <span className="label mt-3 inline-block border-b border-white pb-0.5">ОСТАВИТЬ ЗАПРОС →</span>
+      </div>
+    </a>
+  )
+
   return (
     <div className="relative z-10">
-      {/* Строка состояния стола вместо героя-постера */}
-      <div className="border-b border-line bg-table/70 backdrop-blur">
-        <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-x-5 gap-y-2 px-3 py-3 lg:px-6">
-          <h1 className="display text-[clamp(18px,2.4vw,26px)]">
-            {f.q ? `«${f.q}»` : f.cat ? CATEGORIES.find((c) => c.slug === f.cat)?.ru : f.brand ? f.brand : f.sale ? 'Уценённое' : 'Весь стол'}
-          </h1>
+      {/* Панель управления стеной */}
+      <div className="sticky top-[57px] z-30 border-b border-line bg-table/85 backdrop-blur">
+        <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2.5 lg:px-6">
+          <h1 className="display text-[clamp(16px,2vw,22px)]">{title}</h1>
           <p className="mono text-[11px] text-mute">
-            <b className="text-graphite">{list.length}</b> {plural(list.length, 'позиция', 'позиции', 'позиций')} ·{' '}
-            {TOTAL_PAIRS} {plural(TOTAL_PAIRS, 'вещь', 'вещи', 'вещей')} · каждая в одном экземпляре
+            <b className="text-graphite">{list.length}</b> {plural(list.length, 'позиция', 'позиции', 'позиций')}
+            {f.size ? ` в размере ${f.size}` : ''}
           </p>
-
           <div className="ml-auto flex items-center gap-1.5">
             <button onClick={() => setOpenRail(true)} className="label border border-graphite px-3 py-2 lg:hidden">
               ФИЛЬТРЫ{chips.length ? ` · ${chips.length}` : ''}
             </button>
             <div className="hidden items-center border border-line bg-sheet sm:flex">
-              {DENSITY.map((d) => (
+              {VIEWS.map((d) => (
                 <button
                   key={d.k}
-                  onClick={() => setDensity(d.k)}
+                  onClick={() => setView(d.k)}
                   data-hint="вид"
-                  className={`label px-2.5 py-2 transition ${density === d.k ? 'bg-graphite text-white' : 'hover:bg-table'}`}
+                  className={`label px-2.5 py-2 transition ${view === d.k ? 'bg-graphite text-white' : 'hover:bg-table'}`}
                 >
                   {d.l}
                 </button>
@@ -194,95 +241,43 @@ export function Wall({ route }: { route: Route }) {
             </select>
           </div>
         </div>
-
         {chips.length > 0 && (
-          <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-1.5 px-3 pb-3 lg:px-6">
+          <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-1.5 px-3 pb-2.5 lg:px-6">
             {chips.map((c) => (
               <button key={c.l} onClick={c.clear} className="mono flex items-center gap-1.5 border border-graphite bg-sheet px-2.5 py-1.5 text-[11px] hover:bg-mark hover:text-white">
                 {c.l} <span>✕</span>
               </button>
             ))}
-            <a href={href('/')} className="label px-2 py-1.5 text-mute underline">сбросить всё</a>
+            <a href={href('/catalog')} className="label px-2 py-1.5 text-mute underline">сбросить всё</a>
           </div>
         )}
       </div>
 
-      <div className="mx-auto max-w-[1680px] px-3 py-5 lg:px-6">
-        <div className="grid gap-6 lg:grid-cols-[212px_1fr]">
+      <div className="mx-auto max-w-[1680px] px-3 py-4 lg:px-6">
+        <div className="grid gap-6 lg:grid-cols-[204px_1fr]">
           <aside className="hidden lg:block">
-            <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-2 scrollbar-none">{Rail}</div>
+            <div className="sticky top-32 max-h-[calc(100vh-9rem)] overflow-y-auto pr-2 scrollbar-none">{Rail}</div>
           </aside>
 
-          <div>
-            {/* Один предмет под лампой — взгляду есть за что зацепиться до сетки */}
-            {clean && star && (
-              <section className="lay on mb-4 grid items-center gap-4 border border-line bg-sheet p-4 sm:grid-cols-[1.15fr_1fr] lg:p-6">
-                <a href={href(`/p/${star.id}`)} className="sweep relative block overflow-hidden" data-hint="открыть">
-                  <span
-                    className="pointer-events-none absolute inset-0"
-                    style={{ background: 'radial-gradient(closest-side, rgba(255,244,224,.9), transparent 70%)' }}
-                  />
-                  <img
-                    src={img(star.images[0])}
-                    alt={star.title}
-                    width={900}
-                    height={900}
-                    className="relative mx-auto h-[clamp(150px,26vw,290px)] w-auto object-contain"
-                    style={{ filter: 'drop-shadow(0 26px 22px rgba(16,17,20,.24))' }}
-                  />
-                </a>
-                <div>
-                  <p className="label text-mark">предмет дня</p>
-                  <h2 className="mt-2 text-[clamp(20px,2.6vw,30px)] font-semibold leading-tight">{star.title}</h2>
-                  <p className="mt-2 max-w-[46ch] text-[14px] leading-snug text-mute">{star.desc}</p>
-                  <div className="mt-3 flex flex-wrap items-baseline gap-3">
-                    <span className="mono text-[24px] font-semibold">{money(star.price)}</span>
-                    <span className="mono text-[11px] text-mute">
-                      размер {star.sizes.map((s) => s.label).join(', ')} · {star.sizes.length === 1 ? 'последняя вещь' : 'в наличии'}
-                    </span>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button onClick={() => setQuick(star)} data-hint="быстрый просмотр" className="label bg-mark px-4 py-3 text-white hover:bg-mark-dim">
-                      ПОСМОТРЕТЬ БЛИЖЕ
-                    </button>
-                    <a href={href(`/p/${star.id}`)} className="label border border-graphite px-4 py-3 hover:bg-graphite hover:text-white">
-                      ВСЯ КАРТОЧКА
-                    </a>
-                  </div>
-                </div>
-              </section>
-            )}
-
+          <div ref={gridRef}>
             {list.length === 0 ? (
               <div className="border border-line bg-sheet p-10 text-center">
-                <p className="display text-[26px]">На столе пусто</p>
+                <p className="display text-[26px]">На стене пусто</p>
                 <p className="mx-auto mt-2 max-w-[48ch] text-[14px] text-mute">
                   Каждая вещь у нас в одном экземпляре, поэтому узкий фильтр быстро упирается в пустоту.
                   Снимите часть условий — или закажите модель под себя.
                 </p>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  <a href={href('/')} className="label border border-graphite px-4 py-3 hover:bg-graphite hover:text-white">СБРОСИТЬ</a>
+                  <a href={href('/catalog')} className="label border border-graphite px-4 py-3 hover:bg-graphite hover:text-white">СБРОСИТЬ</a>
                   <a href={href('/concierge')} className="label bg-mark px-4 py-3 text-white">ЗАКАЗАТЬ ПОДБОР</a>
                 </div>
               </div>
+            ) : view === 'wall' ? (
+              <Mosaic list={list} onQuick={setQuick} lead={clean ? LeadTile : undefined} promo={clean ? PromoTile : undefined} />
             ) : (
-              <div ref={gridRef}>
-                {chunk(list, 16).map((shelf, si) => (
-                  <section key={si}>
-                    {si > 0 && (
-                      <div className="my-5 flex items-center gap-3">
-                        <span className="mono text-[10px] tracking-[0.2em] text-mute">РЯД {String(si + 1).padStart(2, '0')}</span>
-                        <span className="h-px flex-1 bg-line" />
-                      </div>
-                    )}
-                    <div className={cls}>
-                      {shelf.map((p, i) => (
-                        <div key={p.id} className="lay" style={{ transitionDelay: `${Math.min(i, 8) * 35}ms` }}>
-                          <Piece p={p} density={density} onQuick={(prod) => setQuick(prod)} />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+              <div className={CLS[view]}>
+                {list.map((p) => (
+                  <Piece key={p.id} p={p} density={view as Density} onQuick={(prod) => setQuick(prod)} />
                 ))}
               </div>
             )}
@@ -290,9 +285,8 @@ export function Wall({ route }: { route: Route }) {
         </div>
       </div>
 
-      {/* Ниже стола — то, что снимает тревогу, коротко и по делу */}
       <section className="border-t border-line bg-sheet">
-        <div className="mx-auto grid max-w-[1680px] gap-px bg-line px-0 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto grid max-w-[1680px] gap-px bg-line sm:grid-cols-2 lg:grid-cols-4">
           {TRUST.map((t) => (
             <div key={t.t} className="bg-sheet p-5">
               <p className="text-[15px] font-semibold">{t.t}</p>
@@ -306,7 +300,7 @@ export function Wall({ route }: { route: Route }) {
         <div className="mx-auto grid max-w-[1680px] gap-8 px-3 py-12 lg:grid-cols-[1fr_1fr] lg:px-6">
           <div>
             <p className="label text-mark">оффлайн</p>
-            <h2 className="display mt-2 text-[clamp(26px,4vw,46px)]">Всё это лежит в Воронеже</h2>
+            <h2 className="display mt-2 text-[clamp(24px,3.6vw,42px)]">Всё это лежит в Воронеже</h2>
             <p className="mt-3 max-w-[48ch] text-[15px] leading-snug text-mute">
               {SHOP.address}. Здесь то же самое можно взять в руки, померить и забрать сразу. Перед визитом за конкретной
               вещью напишите — отложим.
@@ -322,6 +316,10 @@ export function Wall({ route }: { route: Route }) {
             <div className="mt-5 flex flex-wrap gap-2">
               <a href={SHOP.tg.channel} target="_blank" rel="noreferrer" className="label bg-graphite px-4 py-3 text-white hover:bg-mark">КАНАЛ SINI</a>
               <a href={SHOP.mapUrl} target="_blank" rel="noreferrer" className="label border border-graphite px-4 py-3 hover:bg-graphite hover:text-white">НА КАРТЕ</a>
+            </div>
+            <div className="mt-6 border border-graphite bg-sheet p-4">
+              <p className="label text-mute">ПРОМОКОД НА ПЕРВЫЙ ЗАКАЗ</p>
+              <Promo />
             </div>
           </div>
           <div className="grid gap-4">
@@ -367,7 +365,23 @@ export function Wall({ route }: { route: Route }) {
   )
 }
 
-const chunk = (arr: Product[], n: number) =>
-  Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
+function Promo() {
+  const { say } = useStore()
+  const [done, setDone] = useState(false)
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard?.writeText(SHOP.promo).catch(() => {})
+        setDone(true)
+        say('Промокод скопирован')
+        setTimeout(() => setDone(false), 2000)
+      }}
+      className="mt-2 flex w-full items-center justify-between gap-3 border border-dashed border-graphite bg-table px-4 py-3"
+    >
+      <span className="display text-[24px] leading-none">{SHOP.promo}</span>
+      <span className="label">{done ? 'СКОПИРОВАНО ✓' : `${SHOP.promoText} · НАЖМИТЕ`}</span>
+    </button>
+  )
+}
 
-export const discountOf = discount
+export { money }

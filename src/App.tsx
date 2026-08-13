@@ -1,9 +1,10 @@
 import { Foot, Head } from './components/Head'
-import { Cursor, TableBg } from './components/Table'
+import { Cursor, Shutter, TableBg } from './components/Table'
 import { BoxTake } from './components/BoxTake'
 import { useRoute } from './lib/router'
 import { StoreProvider, useStore } from './lib/store'
 import { Wall } from './pages/Wall'
+import { Front } from './pages/Front'
 import { Item } from './pages/Item'
 import { Cart } from './pages/Cart'
 import { Concierge, Favorites, Info, SizeHelp } from './pages/Simple'
@@ -18,8 +19,9 @@ function Screen() {
     case '/fav': return <Favorites />
     case '/concierge': return <Concierge />
     case '/sizes': return <SizeHelp />
-    case '/': return <Wall route={route} />
-    default: return <Wall route={route} />
+    case '/catalog': return <Wall route={route} />
+    case '/': return <Front />
+    default: return <Front />
   }
 }
 
@@ -48,6 +50,7 @@ export default function App() {
       </div>
       <BoxTake />
       <Toast />
+      <Shutter />
       <Cursor />
     </StoreProvider>
   )
