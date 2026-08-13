@@ -327,55 +327,109 @@ function Shelves() {
   )
 }
 
-/* ── 4. Бренды плитками с товаром ────────────────────────────────────── */
+/* ── 4. Бренды полками: имя бренда и сразу его вещи ──────────────────── */
 function Brands() {
-  const pick = (name: string) => PRODUCTS.find((p) => p.brand === name && p.heroOk)
+  const { take } = useStore()
+  const rows = useMemo(
+    () =>
+      BRANDS.filter((b) => b.count >= 3)
+        .slice(0, 6)
+        .map((b) => ({ brand: b, items: PRODUCTS.filter((p) => p.brand === b.name && p.heroOk).slice(0, 5) }))
+        .filter((r) => r.items.length),
+    [],
+  )
+  const rest = useMemo(() => BRANDS.filter((b) => b.count < 3), [])
+
   return (
     <section style={{ background: '#DFE3E6' }} className="py-14 lg:py-20">
       <div className="mx-auto max-w-[1680px] px-3 lg:px-6">
         <Rise>
-          <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-graphite/15 pb-5">
             <div>
               <p className="label text-mark">бренды</p>
               <h2 className="display mt-2 text-[clamp(28px,5vw,62px)]">Кого мы возим</h2>
             </div>
-            <p className="max-w-[36ch] text-[14px] leading-snug text-mute">
-              У каждого бренда показано, что лежит прямо сейчас и от какой цены.
+            <p className="max-w-[38ch] text-[14px] leading-snug text-mute">
+              Не логотипы, а то, что лежит прямо сейчас. Нажмите на вещь — откроется карточка, на размер — вещь уйдёт в корзину.
             </p>
           </div>
         </Rise>
 
-        <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-          {BRANDS.map((b, n) => {
-            const p = pick(b.name)
-            return (
-              <Rise key={b.slug} delay={(n % 6) * 50}>
+        {rows.map((r, n) => (
+          <Rise key={r.brand.slug} delay={Math.min(n, 3) * 60}>
+            <div className="flex flex-col gap-3 border-b border-graphite/12 py-6 lg:flex-row lg:items-center lg:gap-6">
+              <a
+                href={href(`/catalog?brand=${encodeURIComponent(r.brand.name)}`)}
+                data-hint="открыть"
+                className="group flex shrink-0 items-baseline justify-between gap-3 lg:w-[230px] lg:flex-col lg:items-start"
+              >
+                <span className="display text-[clamp(20px,2.6vw,34px)] leading-none transition-colors group-hover:text-mark">
+                  {r.brand.name}
+                </span>
+                <span className="mono text-[11px] text-mute">
+                  {r.brand.count} {plural(r.brand.count, 'вещь', 'вещи', 'вещей')} · от {money(r.brand.min)}
+                </span>
+                <span className="label hidden border-b border-graphite pb-0.5 transition-colors group-hover:border-mark group-hover:text-mark lg:block">
+                  СМОТРЕТЬ ВСЕ →
+                </span>
+              </a>
+
+              <div className="-mx-3 flex gap-2.5 overflow-x-auto px-3 pb-1 scrollbar-none lg:mx-0 lg:flex-1 lg:px-0">
+                {r.items.map((p) => (
+                  <article key={p.id} className="group w-[46%] shrink-0 border border-graphite/12 bg-sheet sm:w-[30%] lg:w-auto lg:flex-1">
+                    <a href={href(`/p/${p.id}`)} data-hint="открыть" className="relative block aspect-square">
+                      <span
+                        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                        style={{ background: 'radial-gradient(closest-side at 50% 40%, rgba(255,246,228,1), transparent 72%)' }}
+                      />
+                      <img
+                        src={img(p.images[0])}
+                        alt={p.title}
+                        width={500}
+                        height={500}
+                        loading="lazy"
+                        className="relative h-full w-full object-contain p-[10%] transition-transform duration-500 group-hover:-translate-y-1.5 group-hover:scale-[1.05]"
+                        style={{ filter: 'drop-shadow(0 14px 12px rgba(16,17,20,.2))' }}
+                      />
+                    </a>
+                    <div className="flex flex-col gap-1 border-t border-graphite/12 p-2.5">
+                      <a href={href(`/p/${p.id}`)} className="line-clamp-2 text-[12px] leading-tight hover:text-mark">
+                        {p.title}
+                      </a>
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <span className="mono text-[13px] font-semibold">{money(p.price)}</span>
+                        <button
+                          onClick={(e) => take(p, p.sizes[0].label, e.currentTarget)}
+                          data-hint="взять"
+                          className="mono border border-line px-1.5 py-0.5 text-[10px] transition hover:border-graphite hover:bg-mark hover:text-white"
+                        >
+                          {p.sizes[0]?.label}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </Rise>
+        ))}
+
+        {rest.length > 0 && (
+          <Rise>
+            <div className="flex flex-wrap items-center gap-2 pt-6">
+              <span className="label text-mute">ещё у нас есть</span>
+              {rest.map((b) => (
                 <a
+                  key={b.slug}
                   href={href(`/catalog?brand=${encodeURIComponent(b.name)}`)}
-                  data-hint="открыть"
-                  className="group relative flex aspect-square flex-col justify-between overflow-hidden border border-graphite/12 bg-sheet p-3 transition-colors hover:border-graphite"
+                  className="mono border border-graphite/20 bg-sheet px-3 py-2 text-[12px] transition hover:border-graphite"
                 >
-                  {/* Товар виден сразу — на телефоне наведения не бывает */}
-                  {p && (
-                    <img
-                      src={img(p.images[0])}
-                      alt={p.title}
-                      width={500}
-                      height={500}
-                      loading="lazy"
-                      className="pointer-events-none absolute inset-x-[8%] top-[22%] h-[54%] w-[84%] object-contain transition-transform duration-500 group-hover:-translate-y-1.5 group-hover:scale-[1.06]"
-                      style={{ filter: 'drop-shadow(0 16px 14px rgba(16,17,20,.22))' }}
-                    />
-                  )}
-                  <span className="display relative text-[clamp(15px,1.5vw,20px)] leading-tight">{b.name}</span>
-                  <span className="mono relative text-[10px] text-mute">
-                    {b.count} {plural(b.count, 'вещь', 'вещи', 'вещей')} · от {money(b.min)}
-                  </span>
+                  {b.name} <span className="text-mute">· {b.count}</span>
                 </a>
-              </Rise>
-            )
-          })}
-        </div>
+              ))}
+            </div>
+          </Rise>
+        )}
       </div>
     </section>
   )
