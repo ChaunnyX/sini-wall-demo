@@ -340,7 +340,7 @@ function Brands() {
               <h2 className="display mt-2 text-[clamp(28px,5vw,62px)]">Кого мы возим</h2>
             </div>
             <p className="max-w-[36ch] text-[14px] leading-snug text-mute">
-              Наведите — покажем, что от бренда лежит прямо сейчас.
+              У каждого бренда показано, что лежит прямо сейчас и от какой цены.
             </p>
           </div>
         </Rise>
@@ -355,14 +355,15 @@ function Brands() {
                   data-hint="открыть"
                   className="group relative flex aspect-square flex-col justify-between overflow-hidden border border-graphite/12 bg-sheet p-3 transition-colors hover:border-graphite"
                 >
+                  {/* Товар виден сразу — на телефоне наведения не бывает */}
                   {p && (
                     <img
                       src={img(p.images[0])}
-                      alt=""
+                      alt={p.title}
                       width={500}
                       height={500}
                       loading="lazy"
-                      className="pointer-events-none absolute inset-x-[10%] top-[24%] h-[52%] w-[80%] scale-95 object-contain opacity-0 transition-all duration-500 group-hover:scale-100 group-hover:opacity-100"
+                      className="pointer-events-none absolute inset-x-[8%] top-[22%] h-[54%] w-[84%] object-contain transition-transform duration-500 group-hover:-translate-y-1.5 group-hover:scale-[1.06]"
                       style={{ filter: 'drop-shadow(0 16px 14px rgba(16,17,20,.22))' }}
                     />
                   )}

@@ -141,7 +141,7 @@ function Tile({ p, shape, onQuick }: { p: Product; shape: Shape; onQuick: (p: Pr
         aria-label={liked ? 'Убрать' : 'Отложить'}
         data-hint={liked ? 'убрать' : 'отложить'}
         className={`absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center text-[12px] transition ${
-          liked ? 'bg-graphite text-white' : 'bg-sheet/80 opacity-0 group-hover:opacity-100'
+          liked ? 'bg-graphite text-white' : 'bg-sheet/85 sm:opacity-0 sm:group-hover:opacity-100'
         }`}
       >
         {liked ? '●' : '○'}

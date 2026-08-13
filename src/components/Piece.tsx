@@ -113,7 +113,7 @@ export function Piece({
         data-hint={liked ? 'убрать' : 'отложить'}
         aria-label={liked ? 'Убрать из избранного' : 'Отложить'}
         className={`absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center text-[13px] transition ${
-          liked ? 'bg-graphite text-white' : 'bg-sheet/80 text-graphite opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+          liked ? 'bg-graphite text-white' : 'bg-sheet/85 text-graphite sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100'
         }`}
       >
         {liked ? '●' : '○'}
